@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--Project variables -->
+<?define AppPoolName = "AppPoolName"?>
+<?define VDirName = "ApplicationName"?>
+
+<!--Include statements, first one must always be there, other two are for extensions added-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:iis="http://schemas.microsoft.com/wix/IIsExtension"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+
+  <Product Id="*" Name="Application Name" Language="1033" Version="1.0.0.0" Manufacturer="Company Name" UpgradeCode="5642defa-8515-499c-a615-b9d62bca1a54">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Platform="x64" />
+
+    <MajorUpgrade Schedule="afterInstallInitialize" DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes"/>
+
+    <!--User Interface, Variables are for customized appearance-->
+    <UIRef Id="CustomInstallDir"/>
+    <WixVariable Id="WixUIDialogBmp" Value="left.jpg"/>
+    <WixVariable Id="WixUIBannerBmp" Value="banner.jpg"/>
+    <WixVariable Id="WixUILicenseRtf" Value="license.rtf"/>
+
+    <!--Check for .NET 4.5 and IIS installed-->
+    <!--Bootstrapper installs .NET Framework 4.5 if not installed TODO: have bootstrapper install IIS if not installed. Currently only shows warning message if not installed-->
+    <PropertyRef Id="NETFRAMEWORK45"/>
+    <Condition Message="You must install Microsoft .NET Framework 4.5 or higher">
+      <![CDATA[Installed OR NETFRAMEWORK45]]>
+    </Condition>
+    <PropertyRef Id ="IISMAJORVERSION"/>
+    <Condition Message="You must install IIS version 7 or IIS version 8">
+      <![CDATA[Installed OR (IISMAJORVERSION AND (IISMAJORVERSION = "#7" OR IISMAJORVERSION = "#8"))]]>
+    </Condition>
+    <!--Go find the IIS root directory from the registry. On most machines that defaults to C:\inetpub\wwwroot. This will be the directory we install into. -->
+    <Property Id="IISROOT">
+      <RegistrySearch Id="IISROOT" Type="directory" Root="HKLM" Key="Software\Microsoft\InetStp" Name="PathWWWRoot" />
+    </Property>
+    <Condition Message="IIS does not appear to be installed correctly, the root directory is not set.">Installed OR IISROOT</Condition>
+    <!--Property Definitions for accepting new names for App Pool and Virtual Directory-->
+    <Property Id="APPPOOLNAME" Secure="yes" Value="AppPoolName"/>
+    <Property Id="VDIRNAME" Secure="yes" Value="ApplicationName"/>
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="IISROOT" Name="WebDir">
+        <Directory Id="INSTALLFOLDER" Name="Application Name" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="MyStartMenuFolder"
+                   Name="Application Name" />
+      </Directory>
+    </Directory>
+    <!--Important! Default WebSite section below must be outside of a component-->
+    <iis:WebSite Id="DefaultWebSite"
+                   Description="Default Web Site"
+                   Directory="INSTALLFOLDER">
+      <iis:WebAddress Id="AllUnassigned" Port="80"/>
+    </iis:WebSite>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="cmpAppPool" Guid="16af2c47-76ee-46f5-be2f-fb4435c0c0d9" KeyPath="yes">
+        <iis:WebAppPool Id="AppPoolName"
+                        Name="AppPoolName"
+                        ManagedRuntimeVersion="v4.0"
+                        ManagedPipelineMode="integrated"
+                        Identity="applicationPoolIdentity" />
+      </Component>
+     
+    </ComponentGroup>
+
+    <!--Adding to an existing website, so iis:WebSite is kept out of the component group.-->
+
+    <DirectoryRef Id="MyStartMenuFolder">
+      <Component Id="cmpWebPageShortcut"
+                 Guid="157c2e2b-4616-4623-bc08-184864d55af3">
+        <util:InternetShortcut Id="shortcutWebPage"
+                               Name="Application Name"
+                               Directory="MyStartMenuFolder"
+                               Target="http://localhost/applicationName"></util:InternetShortcut>
+
+        <RemoveFolder Id="RemoveMyStartMenuFolder" On="uninstall"/>
+        <RegistryValue Root="HKCU"
+                       Key="Software\Microsoft\shortcutWebPage"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!--Tell WiX to install the files. ComponentRefIds get linked to Component Id's above-->
+    <Feature Id="MainApplication" Title="Main Application" Level="1">
+      <ComponentGroupRef Id="NewFilesGroup"/>
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+
+    <Feature Id="Shortcut" Title="Application Name Shortcut" Level="1">
+      <ComponentRef Id="cmpWebPageShortcut" />
+    </Feature>
+
+  </Product>
+</Wix>
